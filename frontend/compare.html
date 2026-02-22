@@ -47,6 +47,13 @@
                         <button class="toggle-btn" data-view="scroll">Scroll</button>
                     </div>
                 </div>
+                <div class="toggle-group">
+                    <span class="toggle-label">Mode:</span>
+                    <div class="toggle-buttons">
+                        <button class="toggle-btn active" data-chartmode="overlay">Overlay</button>
+                        <button class="toggle-btn" data-chartmode="split">Split</button>
+                    </div>
+                </div>
             </div>
             <div class="toolbar-right">
                 <label class="checkbox-control">
@@ -90,6 +97,7 @@
         let runStatuses = {};
         let charts = {};
         let viewMode = 'tabs';
+        let chartMode = 'overlay';  // 'overlay' | 'split'
         let activeTab = 'loss';
         let showMin = false;
         let showMax = false;
@@ -102,6 +110,16 @@
                 document.querySelectorAll('.toggle-btn[data-view]').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 viewMode = btn.dataset.view;
+                rebuildAllCharts();
+            });
+        });
+
+        // Chart mode toggle (overlay / split)
+        document.querySelectorAll('.toggle-btn[data-chartmode]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.toggle-btn[data-chartmode]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                chartMode = btn.dataset.chartmode;
                 rebuildAllCharts();
             });
         });
@@ -128,9 +146,9 @@
         function buildLegend() {
             document.getElementById('runs-legend').innerHTML = runIds.map((id, i) => {
                 const color = RUN_COLORS[i % RUN_COLORS.length].border;
-                return `<span style="display:inline-flex;align-items:center;gap:6px;margin-right:16px;">
-          <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;"></span>
-          <span style="font-family:monospace;font-size:0.8125rem;">Run ${shortId(id)}</span>
+                return `<span style="display:inline-flex;align-items:center;gap:10px;margin-right:24px;padding:6px 14px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);">
+          <span style="width:14px;height:14px;border-radius:50%;background:${color};display:inline-block;box-shadow:0 0 6px ${color};"></span>
+          <span style="font-family:'Inter',monospace;font-size:0.9375rem;font-weight:600;letter-spacing:0.02em;">Run ${shortId(id)}</span>
         </span>`;
             }).join('');
         }
@@ -207,6 +225,19 @@
             }
         }
 
+        function chartContainerHtml(key) {
+            const isCompact = viewMode === 'tabs' && chartMode === 'overlay';
+            const compactClass = isCompact ? ' compact' : '';
+            if (chartMode === 'overlay') {
+                return `<div class="charts-row single"><div class="chart-wrapper${compactClass}" data-chart-key="${key}"><canvas id="chart-${key}-overlay"></canvas></div></div>`;
+            } else {
+                return `<div class="charts-row">
+          <div class="chart-wrapper" data-chart-key="${key}-train"><canvas id="chart-${key}-train"></canvas></div>
+          <div class="chart-wrapper" data-chart-key="${key}-val"><canvas id="chart-${key}-val"></canvas></div>
+        </div>`;
+            }
+        }
+
         function renderTabsView(area, tabKeys) {
             if (!tabKeys.includes(activeTab)) activeTab = tabKeys[0];
 
@@ -217,7 +248,7 @@
             html += '</div>';
             tabKeys.forEach(k => {
                 html += `<div class="tab-panel ${k === activeTab ? 'active' : ''}" id="tab-${k}">
-          <div class="chart-container"><div class="charts-row single"><div class="chart-wrapper compact"><canvas id="chart-${k}"></canvas></div></div></div>
+          <div class="chart-container">${chartContainerHtml(k)}</div>
         </div>`;
             });
             html += '</div>';
@@ -243,7 +274,7 @@
             tabKeys.forEach(k => {
                 html += `<div class="chart-section">
           <div class="chart-section-header"><h2 class="chart-section-title">${k === 'loss' ? 'Loss' : k}</h2></div>
-          <div class="chart-container"><div class="charts-row single"><div class="chart-wrapper"><canvas id="chart-${k}"></canvas></div></div></div>
+          <div class="chart-container">${chartContainerHtml(k)}</div>
         </div>`;
             });
             area.innerHTML = html;
@@ -251,20 +282,42 @@
         }
 
         function renderCompChart(key) {
-            const canvas = document.getElementById(`chart-${key}`);
-            if (!canvas) return;
-
             const dataSource = key === 'loss' ? runsLossData : (runsMetricData[key] || {});
-            const title = key === 'loss' ? 'Loss — All Runs' : `${key} — All Runs`;
+            const label = key === 'loss' ? 'Loss' : key;
 
-            charts[key] = createComparisonChart(canvas, dataSource, null, title, null, showMin, showMax);
-
-            // Click to fullscreen
-            canvas.closest('.chart-wrapper').addEventListener('click', () => {
-                openFullscreenChart((fsCanvas) =>
-                    createComparisonChart(fsCanvas, dataSource, null, title, null, showMin, showMax)
-                );
-            });
+            if (chartMode === 'overlay') {
+                const canvas = document.getElementById(`chart-${key}-overlay`);
+                if (!canvas) return;
+                const title = `${label} — All Runs`;
+                charts[key] = createComparisonChart(canvas, dataSource, null, title, null, showMin, showMax);
+                canvas.closest('.chart-wrapper').addEventListener('click', () => {
+                    openFullscreenChart((fsCanvas) =>
+                        createComparisonChart(fsCanvas, dataSource, null, title, null, showMin, showMax)
+                    );
+                });
+            } else {
+                // Split mode: separate train and validation charts
+                const trainCanvas = document.getElementById(`chart-${key}-train`);
+                const valCanvas = document.getElementById(`chart-${key}-val`);
+                if (trainCanvas) {
+                    const title = `${label} — Train`;
+                    charts[`${key}-train`] = createComparisonChart(trainCanvas, dataSource, 'train', title, null, showMin, showMax);
+                    trainCanvas.closest('.chart-wrapper').addEventListener('click', () => {
+                        openFullscreenChart((fsCanvas) =>
+                            createComparisonChart(fsCanvas, dataSource, 'train', title, null, showMin, showMax)
+                        );
+                    });
+                }
+                if (valCanvas) {
+                    const title = `${label} — Validation`;
+                    charts[`${key}-val`] = createComparisonChart(valCanvas, dataSource, 'validation', title, null, showMin, showMax);
+                    valCanvas.closest('.chart-wrapper').addEventListener('click', () => {
+                        openFullscreenChart((fsCanvas) =>
+                            createComparisonChart(fsCanvas, dataSource, 'validation', title, null, showMin, showMax)
+                        );
+                    });
+                }
+            }
         }
 
         window.addEventListener('beforeunload', () => polling.stopAll());

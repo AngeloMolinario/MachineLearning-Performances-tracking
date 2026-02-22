@@ -36,10 +36,10 @@ function getChartDefaults() {
             legend: {
                 labels: {
                     color: tc.text,
-                    font: { family: 'Inter', size: 12 },
+                    font: { family: 'Inter', size: 14, weight: '500' },
                     usePointStyle: true,
-                    pointStyleWidth: 8,
-                    padding: 16,
+                    pointStyleWidth: 12,
+                    padding: 20,
                 },
             },
             tooltip: {
