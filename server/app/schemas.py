@@ -28,6 +28,7 @@ class ModelRead(BaseModel):
 
 class RunCreate(BaseModel):
     model_id: UUID
+    status : str = "running"
     hyperparameters: Optional[Dict] = None
 
 class RunStatusUpdate(BaseModel):
