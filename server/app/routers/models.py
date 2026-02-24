@@ -20,13 +20,16 @@ async def read_models(db:AsyncSession = Depends(get_db)):
     """
     return await model_repo.get_all(db)
 
-@router.get("/{project_name}/", response_model=schemas.ModelRead)
+@router.get("/find", response_model=schemas.ModelRead)
 async def get_by_model_name(model_name: str, project_name: str, db:AsyncSession = Depends(get_db)):
     """
         Return a single model id identified by its name and project.
         (NOTE: Since the couple name and project name is unique in the db it retun a single model id)
     """
-    return await model_repo.get_by_name_and_project_name(db, model_name, project_name)
+    result = await model_repo.get_by_name_and_project_name(db, model_name, project_name)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+    return result
 
 
 @router.delete("/{model_id}")

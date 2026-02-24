@@ -119,6 +119,22 @@ class TestReadModels:
             assert "project_name" in item
         _delete_model(m["id"])
 
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /models/find
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestReadModelNameProject:
+    def test_model_not_found(self):
+        """GET /models/ deve restituire una lista."""
+        r = requests.get(f"{BASE_URL}/models/find", {"model_name" : "test", "project_name" : "test"})
+        assert r.status_code == 404
+        
+    def test_model_found(self):
+        m = _create_model("test", "test")        
+        r = requests.get(f"{BASE_URL}/models/find", {"model_name" : "test", "project_name" : "test"})
+        assert r.status_code == 200
+        _delete_model(m['id'])
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DELETE /models/{model_id}
