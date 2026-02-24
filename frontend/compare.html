@@ -34,7 +34,15 @@
         <!-- Runs Legend -->
         <div class="compare-toolbar" id="runs-summary">
             <div class="compare-toolbar-info" id="runs-legend"></div>
-            <div id="compare-polling-status"></div>
+            <div style="display:flex;align-items:center;gap:16px;">
+                <div class="label-select-group">
+                    <span class="label-select-label">Label by:</span>
+                    <select class="label-select" id="label-by-select">
+                        <option value="__run_id__">Run ID</option>
+                    </select>
+                </div>
+                <div id="compare-polling-status"></div>
+            </div>
         </div>
 
         <!-- Toolbar -->
@@ -95,6 +103,8 @@
         let runsLossData = {};
         let runsMetricData = {};
         let runStatuses = {};
+        let runsInfo = {};          // full run objects keyed by id
+        let labelBy = '__run_id__'; // current label selection
         let charts = {};
         let viewMode = 'tabs';
         let chartMode = 'overlay';  // 'overlay' | 'split'
@@ -102,6 +112,15 @@
         let showMin = false;
         let showMax = false;
         const polling = new PollingManager(3000);
+
+        // ── Label-by handler ──────────────────────
+
+        document.getElementById('label-by-select').addEventListener('change', (e) => {
+            labelBy = e.target.value;
+            updateLabels();
+            buildLegend();
+            rebuildAllCharts();
+        });
 
         // ── Toolbar handlers ──────────────────────
 
@@ -133,6 +152,91 @@
             init();
         }
 
+        // ── Label helpers ─────────────────────────
+
+        function getRunLabel(id) {
+            if (labelBy === '__run_id__') return `Run ${shortId(id)}`;
+            const info = runsInfo[id];
+            if (info && info.hyperparameters && info.hyperparameters[labelBy] !== undefined) {
+                return `${labelBy}: ${info.hyperparameters[labelBy]}`;
+            }
+            return `Run ${shortId(id)}`;
+        }
+
+        function updateLabels() {
+            // Update loss data labels
+            Object.keys(runsLossData).forEach(id => {
+                runsLossData[id].label = getRunLabel(id);
+            });
+            // Update metric data labels
+            Object.keys(runsMetricData).forEach(name => {
+                Object.keys(runsMetricData[name]).forEach(id => {
+                    runsMetricData[name][id].label = getRunLabel(id);
+                });
+            });
+        }
+
+        function collectAllHpKeys() {
+            const keys = new Set();
+            runIds.forEach(id => {
+                const info = runsInfo[id];
+                if (info && info.hyperparameters) {
+                    Object.keys(info.hyperparameters).forEach(k => keys.add(k));
+                }
+            });
+            return [...keys].sort();
+        }
+
+        function rebuildLabelByOptions() {
+            const select = document.getElementById('label-by-select');
+            const prevValue = select.value;
+            const hpKeys = collectAllHpKeys();
+            let html = '<option value="__run_id__">Run ID</option>';
+            hpKeys.forEach(k => {
+                html += `<option value="${k}"${k === prevValue ? ' selected' : ''}>${k}</option>`;
+            });
+            select.innerHTML = html;
+            // Restore selection if it still exists
+            if (hpKeys.includes(prevValue)) {
+                select.value = prevValue;
+                labelBy = prevValue;
+            } else {
+                select.value = '__run_id__';
+                labelBy = '__run_id__';
+            }
+        }
+
+        // ── Tooltip HTML builder ──────────────────
+
+        function buildTooltipHtml(id) {
+            const info = runsInfo[id];
+            let html = `<div class="tooltip-run-id">ID: ${id}</div>`;
+
+            // Hyperparameters section
+            html += '<div class="tooltip-section-title">Hyperparameters</div>';
+            if (info && info.hyperparameters && Object.keys(info.hyperparameters).length > 0) {
+                html += '<div class="tooltip-hp-list">';
+                Object.entries(info.hyperparameters).forEach(([k, v]) => {
+                    html += `<div class="tooltip-hp-row"><span class="tooltip-hp-key">${k}</span><span class="tooltip-hp-val">${v}</span></div>`;
+                });
+                html += '</div>';
+            } else {
+                html += '<div class="tooltip-empty">No hyperparameters</div>';
+            }
+
+            // Note section
+            html += '<div class="tooltip-section-title" style="margin-top:6px;">Note</div>';
+            if (info && info.note) {
+                html += `<div class="tooltip-note">${info.note}</div>`;
+            } else {
+                html += '<div class="tooltip-empty">No note</div>';
+            }
+
+            return html;
+        }
+
+        // ── Init & Data ───────────────────────────
+
         async function init() {
             buildLegend();
             const hasRunning = await fetchAllData();
@@ -146,9 +250,12 @@
         function buildLegend() {
             document.getElementById('runs-legend').innerHTML = runIds.map((id, i) => {
                 const color = RUN_COLORS[i % RUN_COLORS.length].border;
-                return `<span style="display:inline-flex;align-items:center;gap:10px;margin-right:24px;padding:6px 14px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);">
-          <span style="width:14px;height:14px;border-radius:50%;background:${color};display:inline-block;box-shadow:0 0 6px ${color};"></span>
-          <span style="font-family:'Inter',monospace;font-size:0.9375rem;font-weight:600;letter-spacing:0.02em;">Run ${shortId(id)}</span>
+                const displayLabel = getRunLabel(id);
+                const tooltipContent = buildTooltipHtml(id);
+                return `<span class="run-legend-item">
+          <span class="run-legend-dot" style="background:${color};box-shadow:0 0 6px ${color};"></span>
+          <span class="run-legend-label">${displayLabel}</span>
+          <div class="run-legend-tooltip">${tooltipContent}</div>
         </span>`;
             }).join('');
         }
@@ -163,27 +270,34 @@
 
                 try {
                     const runs = await api.getRunsByModel(modelId);
-                    runs.forEach(r => { runStatuses[r.id] = r.status; });
+                    runs.forEach(r => {
+                        runStatuses[r.id] = r.status;
+                        if (runIds.includes(r.id)) runsInfo[r.id] = r;
+                    });
                 } catch (e) { /* ignore */ }
+
+                // Rebuild label-by options based on fetched hyperparameters
+                rebuildLabelByOptions();
 
                 // Reset data
                 runsLossData = {};
                 runsMetricData = {};
 
                 results.forEach(r => {
-                    runsLossData[r.id] = { data: r.losses, label: `Run ${shortId(r.id)}` };
+                    runsLossData[r.id] = { data: r.losses, label: getRunLabel(r.id) };
                     const metricNames = [...new Set(r.metrics.map(m => m.metric_name))];
                     metricNames.forEach(name => {
                         if (!runsMetricData[name]) runsMetricData[name] = {};
                         runsMetricData[name][r.id] = {
                             data: r.metrics.filter(m => m.metric_name === name),
-                            label: `Run ${shortId(r.id)}`,
+                            label: getRunLabel(r.id),
                         };
                     });
                 });
 
                 runIds.forEach(id => { if (runStatuses[id] === 'running') hasRunning = true; });
 
+                buildLegend();
                 rebuildAllCharts();
 
                 if (!hasRunning && polling.timers.length > 0) {

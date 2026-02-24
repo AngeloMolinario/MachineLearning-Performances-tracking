@@ -27,12 +27,19 @@
 
         <!-- Page Header -->
         <div class="page-header">
-            <div class="flex items-center justify-between">
+            <div class="page-header-row">
                 <div>
-                    <h1 class="page-title"><span class="gradient-text" id="run-title">Experiment Run</span></h1>
-                    <p class="page-subtitle" id="run-subtitle"></p>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h1 class="page-title"><span class="gradient-text" id="run-title">Experiment Run</span></h1>
+                            <p class="page-subtitle" id="run-subtitle"></p>
+                        </div>
+                    </div>
                 </div>
-                <div id="polling-status"></div>
+                <div class="page-header-actions">
+                    <div id="polling-status"></div>
+                    <button class="btn btn-danger btn-sm" id="delete-run-btn">🗑️ Delete Run</button>
+                </div>
             </div>
         </div>
 
@@ -40,6 +47,7 @@
         <div class="chart-container mb-lg fade-in" id="run-info-card">
             <div class="run-info-grid" id="run-info"></div>
             <div class="hyperparams-list" id="run-hyperparams"></div>
+            <div class="run-note-section" id="run-note-section"></div>
         </div>
 
         <!-- Toolbar: View mode + Show Min/Max -->
@@ -107,12 +115,25 @@
         let activeTab = 'loss';
         let charts = {};         // { key: Chart instance }
         const polling = new PollingManager(3000);
+        let currentRunNote = '';
 
         if (!runId) {
             document.getElementById('charts-area').innerHTML = '<div class="empty-state"><p>No run ID provided.</p></div>';
         } else {
             init();
         }
+
+        // Delete run button
+        document.getElementById('delete-run-btn').addEventListener('click', () => {
+            openConfirmModal(
+                'Delete Run',
+                `Are you sure you want to delete run <strong>${shortId(runId)}</strong>? All associated losses and metrics will be permanently deleted.`,
+                async () => {
+                    await api.deleteRun(runId);
+                    window.location.href = `model.html?id=${modelId}&name=${encodeURIComponent(modelName)}&project=${encodeURIComponent(projectName)}`;
+                }
+            );
+        });
 
         // ── Toolbar Handlers ──────────────────────
 
@@ -198,6 +219,52 @@
             } else {
                 hpContainer.innerHTML = '<span class="text-muted" style="font-size:0.75rem;">No hyperparameters</span>';
             }
+
+            // Notes section
+            currentRunNote = run.note || '';
+            renderNoteSection(currentRunNote);
+        }
+
+        function renderNoteSection(note) {
+            const section = document.getElementById('run-note-section');
+            section.innerHTML = `
+                <div class="run-note-header">
+                    <span class="run-note-label">${icons.note} Note</span>
+                    <button class="btn-icon" id="edit-note-btn" title="Edit note">${icons.pencil}</button>
+                </div>
+                <div class="run-note-text ${!note ? 'empty' : ''}" id="note-display">${note || 'No notes yet. Click the pencil icon to add one.'}</div>
+            `;
+
+            document.getElementById('edit-note-btn').addEventListener('click', () => {
+                section.innerHTML = `
+                    <div class="run-note-header">
+                        <span class="run-note-label">${icons.note} Edit Note</span>
+                    </div>
+                    <textarea class="note-edit-area" id="note-textarea" placeholder="Write a note for this run...">${currentRunNote}</textarea>
+                    <div class="note-actions">
+                        <button class="btn btn-secondary btn-sm" id="note-cancel">Cancel</button>
+                        <button class="btn btn-primary btn-sm" id="note-save">Save</button>
+                    </div>
+                `;
+
+                document.getElementById('note-textarea').focus();
+
+                document.getElementById('note-cancel').addEventListener('click', () => {
+                    renderNoteSection(currentRunNote);
+                });
+
+                document.getElementById('note-save').addEventListener('click', async () => {
+                    const newNote = document.getElementById('note-textarea').value;
+                    try {
+                        await api.updateNote(runId, newNote);
+                        currentRunNote = newNote;
+                        renderNoteSection(currentRunNote);
+                    } catch (err) {
+                        alert('Failed to save note: ' + err.message);
+                        console.error(err);
+                    }
+                });
+            });
         }
 
         // ── Fetch Data ────────────────────────────

@@ -13,6 +13,12 @@ const api = {
     return res.json();
   },
 
+  async deleteModel(modelId) {
+    const res = await fetch(`${API_BASE}/models/${modelId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`Failed to delete model: ${res.status}`);
+    return res.json();
+  },
+
   // ── Runs ────────────────────────────────
   async getRunsByModel(modelId) {
     const res = await fetch(`${API_BASE}/runs/runbymodels/${modelId}`);
@@ -22,12 +28,28 @@ const api = {
   },
 
   async updateHyperparameters(runId, hyperparameters) {
-    const res = await fetch(`${API_BASE}/runs/${runId}/hyperparameters`, {
+    const res = await fetch(`${API_BASE}/runs/update_hyperparam`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hyperparameters }),
+      body: JSON.stringify({ run_id: runId, new_hyperpamar: hyperparameters }),
     });
     if (!res.ok) throw new Error(`Failed to update hyperparameters: ${res.status}`);
+    return res.json();
+  },
+
+  async deleteRun(runId) {
+    const res = await fetch(`${API_BASE}/runs/${runId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`Failed to delete run: ${res.status}`);
+    return res.json();
+  },
+
+  async updateNote(runId, newNote) {
+    const res = await fetch(`${API_BASE}/runs/update_note`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run_id: runId, new_note: newNote }),
+    });
+    if (!res.ok) throw new Error(`Failed to update note: ${res.status}`);
     return res.json();
   },
 
@@ -136,6 +158,8 @@ const icons = {
   folder: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>`,
   activity: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
   chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`,
+  note: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`,
 };
 
 // ── Fullscreen Chart ────────────────────────
@@ -265,6 +289,49 @@ function openHyperparamModal(runId, hyperparameters, onSave) {
       close();
     } catch (err) {
       alert('Failed to save hyperparameters. The API endpoint may not be available yet.');
+      console.error(err);
+    }
+  });
+}
+
+// ── Confirm Modal ───────────────────────────
+
+function openConfirmModal(title, message, onConfirm) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay visible';
+
+  overlay.innerHTML = `
+    <div class="modal confirm-modal">
+      <div class="modal-header">
+        <h3 class="modal-title">${title}</h3>
+        <button class="modal-close" id="confirm-close">✕</button>
+      </div>
+      <div class="confirm-modal-body">
+        <p>${message}</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="confirm-cancel">Cancel</button>
+        <button class="btn btn-danger" id="confirm-ok">Delete</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const close = () => {
+    overlay.classList.remove('visible');
+    setTimeout(() => overlay.remove(), 300);
+  };
+
+  overlay.querySelector('#confirm-close').addEventListener('click', close);
+  overlay.querySelector('#confirm-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('#confirm-ok').addEventListener('click', async () => {
+    try {
+      await onConfirm();
+      close();
+    } catch (err) {
+      alert('Operation failed: ' + err.message);
       console.error(err);
     }
   });

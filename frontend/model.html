@@ -24,8 +24,16 @@
 
         <!-- Page Header -->
         <div class="page-header">
-            <h1 class="page-title"><span class="gradient-text" id="model-name">Loading...</span></h1>
-            <p class="page-subtitle" id="model-project"></p>
+            <div class="page-header-row">
+                <div>
+                    <h1 class="page-title"><span class="gradient-text" id="model-name">Loading...</span></h1>
+                    <p class="page-subtitle" id="model-project"></p>
+                </div>
+                <div class="page-header-actions">
+                    <button class="btn btn-danger btn-sm" id="delete-model-btn" title="Delete this model">🗑️ Delete
+                        Model</button>
+                </div>
+            </div>
         </div>
 
         <!-- Model Stats Bar -->
@@ -151,6 +159,7 @@
             <div class="run-card-actions">
               <span class="status-badge ${getStatusClass(run.status)}">${run.status}</span>
               <button class="btn-icon edit-hp-btn" data-run-id="${run.id}" title="Edit Hyperparameters">${icons.pencil}</button>
+              <button class="btn-icon-danger delete-run-btn" data-run-id="${run.id}" data-run-short="${shortId(run.id)}" title="Delete Run">${icons.trash}</button>
             </div>
           </div>
           <div class="run-info-grid">
@@ -168,6 +177,7 @@
             </div>
           </div>
           <div class="hyperparams-list">${hpTags}</div>
+          ${run.note ? `<div class="run-card-note">${icons.note}<span class="run-card-note-text">${run.note}</span></div>` : ''}
         </div>`;
         }
 
@@ -189,6 +199,24 @@
                         await api.updateHyperparameters(id, newParams);
                         loadRuns();
                     });
+                });
+            });
+
+            document.querySelectorAll('.delete-run-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const delBtn = e.target.closest('.delete-run-btn');
+                    const runId = delBtn.dataset.runId;
+                    const runShort = delBtn.dataset.runShort;
+                    openConfirmModal(
+                        'Delete Run',
+                        `Are you sure you want to delete run <strong>${runShort}</strong>? All associated losses and metrics will be permanently deleted.`,
+                        async () => {
+                            await api.deleteRun(runId);
+                            loadRuns();
+                        }
+                    );
                 });
             });
         }
@@ -214,6 +242,18 @@
             if (selectedRuns.size < 2) { alert('Select at least 2 runs to compare.'); return; }
             const ids = Array.from(selectedRuns).join(',');
             window.location.href = `compare.html?runs=${ids}&model=${encodeURIComponent(modelName)}&project=${encodeURIComponent(projectName)}&model_id=${modelId}`;
+        });
+
+        // Delete model button
+        document.getElementById('delete-model-btn').addEventListener('click', () => {
+            openConfirmModal(
+                'Delete Model',
+                `Are you sure you want to delete <strong>${modelName}</strong>? All associated runs, losses and metrics will be permanently deleted.`,
+                async () => {
+                    await api.deleteModel(modelId);
+                    window.location.href = 'index.html';
+                }
+            );
         });
     </script>
 </body>

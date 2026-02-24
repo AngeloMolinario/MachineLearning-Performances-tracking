@@ -141,7 +141,9 @@
             }
 
             return `
-                    <a href="model.html?id=${m.id}&name=${encodeURIComponent(m.name)}&project=${encodeURIComponent(m.project_name)}" class="model-card">
+                    <div class="model-card" data-model-id="${m.id}">
+                      <button class="model-card-delete" data-model-id="${m.id}" data-model-name="${m.name}" title="Delete model">${icons.trash}</button>
+                      <a href="model.html?id=${m.id}&name=${encodeURIComponent(m.name)}&project=${encodeURIComponent(m.project_name)}" style="display:contents;">
                       <div class="model-card-top">
                         <div class="model-card-icon">${icons.brain}</div>
                         <div>
@@ -155,7 +157,8 @@
                         ${completed > 0 ? `<span class="model-card-stat" style="color:var(--status-completed);">● ${completed} done</span>` : ''}
                         ${failed > 0 ? `<span class="model-card-stat" style="color:var(--status-failed);">● ${failed} failed</span>` : ''}
                       </div>
-                    </a>`;
+                      </a>
+                    </div>`;
           }).join('')}
                 </div>
               </div>
@@ -164,6 +167,24 @@
         }
 
         content.innerHTML = html;
+
+        // Wire up delete model buttons
+        content.querySelectorAll('.model-card-delete').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const modelId = btn.dataset.modelId;
+            const modelN = btn.dataset.modelName;
+            openConfirmModal(
+              'Delete Model',
+              `Are you sure you want to delete <strong>${modelN}</strong>? All associated runs, losses and metrics will be permanently deleted.`,
+              async () => {
+                await api.deleteModel(modelId);
+                loadModels();
+              }
+            );
+          });
+        });
 
         // Wire up collapsible project groups
         content.querySelectorAll('.project-group-header').forEach(header => {
