@@ -49,3 +49,8 @@ async def update_status(payload: schemas.RunStatusUpdate, db: AsyncSession = Dep
 async def update_note(payload: schemas.RunNotesUpdate, db: AsyncSession = Depends(get_db)):
     row_updated = await run_repo.update_note(db, new_update=payload)
     return {"rows_updated": row_updated}
+
+@router.patch("/update_hyperparam")
+async def update_hyperparam(payload: schemas.RunHyperparamUpdate, db: AsyncSession = Depends(get_db)):
+    row_updated = await run_repo.update_hyperparams(db, payload)
+    return {"rows_updated": row_updated}

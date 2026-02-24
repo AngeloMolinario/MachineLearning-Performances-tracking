@@ -1,7 +1,7 @@
 # server/app/repositories/run_repo.py
 from app.repositories.base import BaseRepository
 from app import models
-from app.schemas import RunCreate, RunStatusUpdate, RunNotesUpdate
+from app.schemas import RunCreate, RunStatusUpdate, RunNotesUpdate, RunHyperparamUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, update
 from uuid import UUID
@@ -68,6 +68,15 @@ class RunRepository(BaseRepository[models.TrainingRun, RunCreate, RunStatusUpdat
                 .values(status=new_status)
             )
             
+        result = await db.execute(stmt)
+        await db.commit()
+        return result.rowcount
+    
+    async def update_hyperparams(self, db: AsyncSession, new_update: RunHyperparamUpdate):
+        run_id = new_update.run_id
+        new_h = new_update.new_hyperparams
+
+        stmt = update(self.model).where(self.model.id == run_id).values(hyperparameters = new_h)
         result = await db.execute(stmt)
         await db.commit()
         return result.rowcount

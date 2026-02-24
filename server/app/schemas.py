@@ -36,6 +36,9 @@ class RunStatusUpdate(BaseModel):
     run_id : UUID
     new_status : StatusEnum
 
+class RunHyperparamUpdate(BaseModel):
+    run_id: UUID
+    new_hyperparams: Dict
 class RunNotesUpdate(BaseModel):
     run_id: UUID
     new_note : str = None
