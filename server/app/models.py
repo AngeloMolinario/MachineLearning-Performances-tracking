@@ -32,6 +32,8 @@ class TrainingRun(Base):
 
     status = Column(Enum(StatusEnum), nullable=False, default="running")  
     hyperparameters = Column(JSON)
+    note = Column(String, nullable=True)
+    
 
     model = relationship("Model", back_populates="runs")
 

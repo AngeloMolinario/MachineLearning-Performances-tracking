@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, update
+from uuid import UUID
 
 from app.db import get_db
-from app import models, schemas
+from app import schemas
 from app.repositories.run_repo import run_repo
 from app.repositories.model_repo import model_repo
 
@@ -14,6 +14,9 @@ router = APIRouter(prefix="/runs", tags=["runs"])
 async def create_run(run: schemas.RunCreate, db: AsyncSession = Depends(get_db)):
     return await run_repo.create(db, run)
 
+@router.get("/{run_id}", response_model=schemas.RunRead)
+async def get_by_id(run_id:str, db: AsyncSession = Depends(get_db)):
+    return await run_repo.get(db, run_id)
 
 @router.get("/runbymodels/{model_id}", response_model=list[schemas.RunRead])
 async def read_runs(model_id: str, db: AsyncSession = Depends(get_db)):
@@ -31,15 +34,18 @@ async def read_runs_by_project(project_name: str, db: AsyncSession = Depends(get
     return await run_repo.get_by_project_name(db, project_name)
 
 
+
 @router.delete("/{run_id}")
 async def delete_run(run_id: str, db: AsyncSession = Depends(get_db)):
-    result = await run_repo.batch_delete(db, run_id)
+    result = await run_repo.batch_delete(db, list([UUID(r.strip()) for r in run_id.split(",")]))
     return {"detail": "Run deleted", "Affected row" : result}
 
 @router.patch("/update_status")
 async def update_status(payload: schemas.RunStatusUpdate, db: AsyncSession = Depends(get_db)):
-    # Richiami semplicemente il tuo metodo custom!
-    rows_updated = await run_repo.update_status(db, new_update=payload)
-    
-    # Restituisci il numero di righe modificate
+    rows_updated = await run_repo.update_status(db, new_update=payload)    
     return {"rows_updated": rows_updated}
+
+@router.patch("/update_note")
+async def update_note(payload: schemas.RunNotesUpdate, db: AsyncSession = Depends(get_db)):
+    row_updated = await run_repo.update_note(db, new_update=payload)
+    return {"rows_updated": row_updated}

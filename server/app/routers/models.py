@@ -12,10 +12,25 @@ async def create_model(model: schemas.ModelCreate, db: AsyncSession = Depends(ge
 
 @router.get("/", response_model=list[schemas.ModelRead])
 async def read_models(db:AsyncSession = Depends(get_db)):
+    """
+        Return the list of all the registered model
+    """
     return await model_repo.get_all(db)
+
+@router.get("/{project_name}/", response_model=schemas.ModelRead)
+async def get_by_model_name(model_name: str, project_name: str, db:AsyncSession = Depends(get_db)):
+    """
+        Return a single model id identified by its name and project.
+        (NOTE: Since the couple name and project name is unique in the db it retun a single model id)
+    """
+    return await model_repo.get_by_name_and_project_name(db, model_name, project_name)
+
 
 @router.delete("/{model_id}")
 async def delete_model(model_id: str, db: AsyncSession = Depends(get_db)):
+    """
+        Request the delete of a model by its id
+    """
     result = await model_repo.delete(db, model_id)
     if result == 0:
         raise HTTPException(status_code=404, detail="No models found for this project")
@@ -23,6 +38,9 @@ async def delete_model(model_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.delete("/project/{project_name}")
 async def delete_models_by_project(project_name: str, db: AsyncSession = Depends(get_db)):
+    """
+        Delete all the models associated to a project name.
+    """
     result = await model_repo.delete_by_project(db, project_name)
     
     if result == 0:

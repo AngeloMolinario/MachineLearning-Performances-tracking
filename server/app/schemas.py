@@ -28,12 +28,17 @@ class ModelRead(BaseModel):
 
 class RunCreate(BaseModel):
     model_id: UUID
-    status : str = "running"
+    status : str = StatusEnum.running
     hyperparameters: Optional[Dict] = None
+    note: Optional[str] = None
 
 class RunStatusUpdate(BaseModel):
     run_id : UUID
     new_status : StatusEnum
+
+class RunNotesUpdate(BaseModel):
+    run_id: UUID
+    new_note : str = None
 
 class RunRead(BaseModel):
     id: UUID
@@ -42,6 +47,7 @@ class RunRead(BaseModel):
     started_at: datetime
     finished_at: Optional[datetime]
     hyperparameters: Optional[Dict] = None
+    note: Optional[str] = None
 
     class Config:
         from_attributes = True
