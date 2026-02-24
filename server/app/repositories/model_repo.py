@@ -10,7 +10,14 @@ class ModelUpdate(BaseModel):
     pass
 
 class ModelRepository(BaseRepository[Model, ModelCreate, ModelUpdate]):
-        
+    
+    async def create(self, db: AsyncSession, obj_in: ModelCreate):
+        obj_model_data = obj_in.model_dump()
+        result = await self.get_by_name_and_project_name(db, obj_model_data['name'], obj_model_data['project_name'])
+        if result is not None:
+            return None
+        return await super().create(db, obj_in)
+    
     async def delete_by_project(self, db: AsyncSession, project_name: str) -> int:
         """
         Cancella tutti i modelli associati a un determinato nome progetto.

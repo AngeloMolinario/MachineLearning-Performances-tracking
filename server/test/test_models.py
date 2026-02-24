@@ -78,6 +78,16 @@ class TestCreateModel:
         r = requests.post(f"{BASE_URL}/models/", json={})
         assert r.status_code == 422
 
+    def test_create_models_conflict(self):
+        payload = {"name": f"m_{uuid.uuid4().hex[:6]}", "project_name": "proj_B"}
+        r = requests.post(f"{BASE_URL}/models/", json=payload)
+        assert r.status_code == 200
+        data = r.json()
+        r = requests.post(f"{BASE_URL}/models/", json=payload)
+        assert r.status_code == 409
+        uuid.UUID(data["id"])  # solleva ValueError se non è un UUID
+        _delete_model(data["id"])
+
 
 
 

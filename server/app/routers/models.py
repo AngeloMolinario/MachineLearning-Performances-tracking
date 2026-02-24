@@ -8,7 +8,10 @@ router = APIRouter(prefix="/models", tags=["models"])
 
 @router.post("/", response_model=schemas.ModelRead)
 async def create_model(model: schemas.ModelCreate, db: AsyncSession = Depends(get_db)):
-    return await model_repo.create(db, model)
+    result = await model_repo.create(db, model)
+    if result is None:
+        raise HTTPException(status_code=409, detail="Record already exists. Model name and project already used")
+    return result
 
 @router.get("/", response_model=list[schemas.ModelRead])
 async def read_models(db:AsyncSession = Depends(get_db)):
