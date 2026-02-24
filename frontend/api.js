@@ -31,7 +31,7 @@ const api = {
     const res = await fetch(`${API_BASE}/runs/update_hyperparam`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ run_id: runId, new_hyperpamar: hyperparameters }),
+      body: JSON.stringify({ run_id: runId, new_hyperparams: hyperparameters }),
     });
     if (!res.ok) throw new Error(`Failed to update hyperparameters: ${res.status}`);
     return res.json();
