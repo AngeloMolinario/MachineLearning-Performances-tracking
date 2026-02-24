@@ -27,6 +27,7 @@ Usage:
 """
 
 import requests
+from requests import HTTPError
 from typing import Optional
 from client.enums import SplitEnum, StatusEnum, MetricEnum
 
@@ -66,14 +67,24 @@ class TrainTrackClient:
             "name": name,
             "project_name": project_name
         }
-        response = self._post("/models/", payload)
-        self.model_id = response.get("id", None)
-        return self.model_id
+        try:
+            response = self._post("/models/", payload)        
+            self.model_id = response.get("id", None)
+            return self.model_id
+        except HTTPError:
+            return None
+        
 
     def get_models(self):
         """List all registered models."""
         return self._get("/models/")
-
+    
+    def get_model(self, name, project):
+        ''' return the id of the model given its name and project'''
+        response = self._get("/models/find", {"model_name" : name, "project_name" : project})
+        self.model_id = response.get("id", None)
+        return self.model_id
+    
     def delete_model(self, model_id: str = None):
         """Delete a model by ID. Uses stored model_id if not provided."""
         mid = model_id or self.model_id
@@ -85,7 +96,7 @@ class TrainTrackClient:
 
     # ── Runs ────────────────────────────────────────
 
-    def create_run(self, hyperparameters: Optional[dict] = None, model_id: str = None):
+    def create_run(self, hyperparameters: Optional[dict] = None, note: Optional[str] = None, model_id: str = None):
         """Start a new training run. Stores run_id internally."""
         mid = model_id or self.model_id
         if not mid:
@@ -93,6 +104,9 @@ class TrainTrackClient:
         payload = {"model_id": str(mid)}
         if hyperparameters:
             payload["hyperparameters"] = hyperparameters
+        if note:
+            payload["note"] = note
+
         response = self._post("/runs/", payload)
         self.run_id = response.get("id", None)
         return self.run_id
