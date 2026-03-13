@@ -89,7 +89,7 @@ class MetricCreate(BaseModel):
     run_id : UUID
     step: int
     split: SplitEnum
-    metric_name: MetricEnum
+    metric_name: str
     value: float
 
 class MetricBatchCreate(BaseModel):
@@ -100,7 +100,7 @@ class MetricRead(BaseModel):
     run_id: UUID
     step: int
     split: SplitEnum
-    metric_name: MetricEnum
+    metric_name: str
     timestamp: datetime
     value: float
 

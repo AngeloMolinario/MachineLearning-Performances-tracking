@@ -65,7 +65,7 @@ class Metric(Base):
     run_id = Column(UUID(as_uuid=True), ForeignKey("training_runs.id"), nullable=False)
     step = Column(Integer, nullable=False)
     split = Column(Enum(SplitEnum), nullable=False)
-    metric_name = Column(Enum(MetricEnum), nullable=False)
+    metric_name = Column(String, nullable=False)
 
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     value = Column(Float, nullable=False)

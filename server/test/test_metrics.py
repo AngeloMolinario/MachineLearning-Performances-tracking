@@ -101,14 +101,6 @@ class TestCreateMetric:
         assert r.json()["split"] == "validation"
         _delete_model(m["id"])
 
-    def test_create_metric_invalid_metric_name(self):
-        """Nome metrica non valido deve restituire 422."""
-        m = _create_model()
-        run = _create_run(m["id"])
-        r = _post_metric(run["id"], step=1, split="train", metric_name="top_k_accuracy", value=0.9)
-        assert r.status_code == 422
-        _delete_model(m["id"])
-
     def test_create_metric_invalid_split(self):
         """Split non valido deve restituire 422."""
         m = _create_model()
@@ -182,18 +174,6 @@ class TestCreateMetricBatch:
         assert "accuracy" in returned_metric_names
         assert "f1-score" in returned_metric_names
         assert "recall" in returned_metric_names
-        _delete_model(m["id"])
-
-    def test_create_metric_batch_invalid_item(self):
-        """Se un elemento del batch ha metric_name non valido deve restituire 422."""
-        m = _create_model()
-        run = _create_run(m["id"])
-        metrics = [
-            {"run_id": run["id"], "step": 1, "split": "train", "metric_name": "INVALID_METRIC", "value": 0.9},
-        ]
-        payload = {"run_id": run["id"], "metrics": metrics}
-        r = requests.post(f"{BASE_URL}/metric/batch", json=payload)
-        assert r.status_code == 422
         _delete_model(m["id"])
 
     def test_create_metric_batch_empty_list(self):
