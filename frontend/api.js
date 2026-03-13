@@ -125,7 +125,6 @@ const ThemeManager = {
     if (btn) btn.textContent = this.get() === 'dark' ? '☀️' : '🌙';
   },
 
-  /** Returns chart text colors based on current theme */
   chartColors() {
     const isDark = this.get() === 'dark';
     return {
@@ -140,7 +139,6 @@ const ThemeManager = {
   },
 };
 
-// Initialize theme immediately
 ThemeManager.init();
 
 // ── SVG Icons ───────────────────────────────
@@ -164,20 +162,35 @@ const icons = {
 
 // ── Fullscreen Chart ────────────────────────
 
-function openFullscreenChart(chartCreateFn) {
+function openFullscreenChart(chartCreateFn, extraHeaderHtml = '', onExtraHeaderMount = null) {
   const overlay = document.createElement('div');
   overlay.className = 'chart-fullscreen-overlay';
   overlay.innerHTML = `
-    <div class="chart-fullscreen-inner">
+    <div class="chart-fullscreen-inner" style="display:flex; flex-direction:column;">
       <button class="chart-fullscreen-close" title="Close">✕</button>
-      <canvas id="fullscreen-canvas"></canvas>
+      <div class="fullscreen-custom-header"></div>
+      <div style="flex:1; position:relative; min-height:0; margin-top:20px;">
+        <canvas id="fullscreen-canvas"></canvas>
+      </div>
     </div>`;
   document.body.appendChild(overlay);
 
   const canvas = overlay.querySelector('#fullscreen-canvas');
-  const chart = chartCreateFn(canvas);
+  let chart = chartCreateFn(canvas);
 
-  const close = () => { chart.destroy(); overlay.remove(); };
+  const customHeader = overlay.querySelector('.fullscreen-custom-header');
+  if (extraHeaderHtml) {
+    customHeader.innerHTML = extraHeaderHtml;
+    if (onExtraHeaderMount) {
+      const reRender = (newChartCreateFn) => {
+        if (chart) chart.destroy();
+        chart = newChartCreateFn(canvas);
+      };
+      onExtraHeaderMount(customHeader, reRender);
+    }
+  }
+
+  const close = () => { if (chart) chart.destroy(); overlay.remove(); };
   overlay.querySelector('.chart-fullscreen-close').addEventListener('click', close);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   document.addEventListener('keydown', function handler(e) {
@@ -337,7 +350,7 @@ function openConfirmModal(title, message, onConfirm) {
   });
 }
 
-// ── Navbar Builder (shared across pages) ────
+// ── Navbar Builder ────────────────────────────
 
 function buildNavbar(activePage) {
   return `

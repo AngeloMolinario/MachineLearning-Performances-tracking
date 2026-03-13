@@ -97,18 +97,43 @@
         document.getElementById('stat-models').textContent = models.length;
         document.getElementById('stat-runs').textContent = totalRuns;
 
-        let html = '';
-        let groupIdx = 0;
-        for (const [project, projectModels] of Object.entries(grouped)) {
-          // Count total project runs
+        const projectStats = Object.entries(grouped).map(([project, projectModels]) => {
           let projectRunCount = 0;
           let projectRunningCount = 0;
+          let latestDate = 0;
+
           projectModels.forEach(m => {
             const runs = runsPerModel[m.id] || [];
             projectRunCount += runs.length;
             projectRunningCount += runs.filter(r => r.status === 'running').length;
+
+            runs.forEach(r => {
+              if (r.started_at) {
+                const d = new Date(r.started_at).getTime();
+                if (d > latestDate) latestDate = d;
+              }
+            });
           });
 
+          // Sort models within the project by their latest run date as well
+          projectModels.sort((a, b) => {
+            const runsA = runsPerModel[a.id] || [];
+            const runsB = runsPerModel[b.id] || [];
+            const dateA = runsA.length > 0 ? Math.max(...runsA.map(r => new Date(r.started_at).getTime() || 0)) : 0;
+            const dateB = runsB.length > 0 ? Math.max(...runsB.map(r => new Date(r.started_at).getTime() || 0)) : 0;
+            return dateB - dateA;
+          });
+
+          return { project, projectModels, projectRunCount, projectRunningCount, latestDate };
+        });
+
+        // Sort projects by latest activity
+        projectStats.sort((a, b) => b.latestDate - a.latestDate);
+
+        let html = '';
+        let groupIdx = 0;
+
+        for (const { project, projectModels, projectRunCount, projectRunningCount } of projectStats) {
           const statsText = [
             `${projectModels.length} model${projectModels.length > 1 ? 's' : ''}`,
             `${projectRunCount} run${projectRunCount !== 1 ? 's' : ''}`,
@@ -116,7 +141,7 @@
           ].filter(Boolean).join(' · ');
 
           html += `
-            <div class="project-group fade-in stagger-${Math.min(groupIdx + 1, 6)}" id="group-${groupIdx}">
+            <div class="project-group collapsed fade-in stagger-${Math.min(groupIdx + 1, 6)}" id="group-${groupIdx}">
               <div class="project-group-header" data-group="group-${groupIdx}">
                 <div class="project-group-icon">${icons.folder}</div>
                 <div class="project-group-info">
@@ -141,9 +166,8 @@
             }
 
             return `
-                    <div class="model-card" data-model-id="${m.id}">
-                      <button class="model-card-delete" data-model-id="${m.id}" data-model-name="${m.name}" title="Delete model">${icons.trash}</button>
-                      <a href="model.html?id=${m.id}&name=${encodeURIComponent(m.name)}&project=${encodeURIComponent(m.project_name)}" style="display:contents;">
+                    <div class="model-card" data-model-id="${m.id}" onclick="window.location.href='model.html?id=${m.id}&name=${encodeURIComponent(m.name)}&project=${encodeURIComponent(m.project_name)}'">
+                      <button class="model-card-delete" data-model-id="${m.id}" data-model-name="${m.name}" title="Delete model" onclick="event.stopPropagation();">${icons.trash}</button>
                       <div class="model-card-top">
                         <div class="model-card-icon">${icons.brain}</div>
                         <div>
@@ -157,7 +181,6 @@
                         ${completed > 0 ? `<span class="model-card-stat" style="color:var(--status-completed);">● ${completed} done</span>` : ''}
                         ${failed > 0 ? `<span class="model-card-stat" style="color:var(--status-failed);">● ${failed} failed</span>` : ''}
                       </div>
-                      </a>
                     </div>`;
           }).join('')}
                 </div>

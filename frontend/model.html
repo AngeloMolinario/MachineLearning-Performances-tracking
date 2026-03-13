@@ -30,7 +30,8 @@
                     <p class="page-subtitle" id="model-project"></p>
                 </div>
                 <div class="page-header-actions">
-                    <button class="btn btn-danger btn-sm" id="delete-model-btn" title="Delete this model">🗑️ Delete
+                    <button class="btn btn-danger btn-sm flex items-center" style="gap: 6px;" id="delete-model-btn"
+                        title="Delete this model">Delete
                         Model</button>
                 </div>
             </div>
@@ -75,6 +76,7 @@
         document.getElementById('model-project').textContent = projectName ? `Project: ${projectName}` : '';
         document.getElementById('breadcrumb-model').textContent = modelName;
         document.title = `ML Monitor — ${modelName}`;
+        document.getElementById('delete-model-btn').innerHTML = `${icons.trash} Delete Model`;
 
         if (!modelId) {
             content.innerHTML = '<div class="empty-state"><p>No model ID provided.</p></div>';
@@ -217,6 +219,17 @@
                             loadRuns();
                         }
                     );
+                });
+            });
+
+            document.querySelectorAll('.run-card').forEach(card => {
+                card.style.cursor = 'pointer';
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('.run-card-checkbox') || e.target.closest('.btn-icon') || e.target.closest('.btn-icon-danger') || e.target.closest('a')) {
+                        return;
+                    }
+                    const runId = card.dataset.runId;
+                    window.location.href = `run.html?id=${runId}&model=${encodeURIComponent(modelName)}&project=${encodeURIComponent(projectName)}&model_id=${modelId}`;
                 });
             });
         }

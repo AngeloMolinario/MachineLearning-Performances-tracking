@@ -29,16 +29,13 @@
         <div class="page-header">
             <div class="page-header-row">
                 <div>
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h1 class="page-title"><span class="gradient-text" id="run-title">Experiment Run</span></h1>
-                            <p class="page-subtitle" id="run-subtitle"></p>
-                        </div>
-                    </div>
+                    <h1 class="page-title"><span class="gradient-text" id="run-title">Experiment Run</span></h1>
+                    <p class="page-subtitle" id="run-subtitle"></p>
                 </div>
                 <div class="page-header-actions">
                     <div id="polling-status"></div>
-                    <button class="btn btn-danger btn-sm" id="delete-run-btn">🗑️ Delete Run</button>
+                    <button class="btn btn-danger btn-sm flex items-center" style="gap: 6px;" id="delete-run-btn">Delete
+                        Run</button>
                 </div>
             </div>
         </div>
@@ -50,7 +47,7 @@
             <div class="run-note-section" id="run-note-section"></div>
         </div>
 
-        <!-- Toolbar: View mode + Show Min/Max -->
+        <!-- Toolbar -->
         <div class="toolbar-row" id="chart-toolbar">
             <div class="toolbar-left">
                 <div class="toggle-group">
@@ -66,6 +63,12 @@
                         <button class="toggle-btn active" data-chartmode="overlay">Overlay</button>
                         <button class="toggle-btn" data-chartmode="split">Split</button>
                     </div>
+                </div>
+                <div class="toggle-group" id="split-tasks-group"
+                    style="display: none; border-left: 1px solid var(--border-glass); padding-left: 16px; margin-left: 8px;">
+                    <label class="checkbox-control">
+                        <input type="checkbox" id="split-tasks" /> Separate Tasks
+                    </label>
                 </div>
             </div>
             <div class="toolbar-right">
@@ -96,24 +99,25 @@
         const projectName = getQueryParam('project') || '';
         const modelId = getQueryParam('model_id') || '';
 
-        // Setup breadcrumbs
         const modelLink = document.getElementById('breadcrumb-model-link');
         modelLink.textContent = modelName;
         modelLink.href = `model.html?id=${modelId}&name=${encodeURIComponent(modelName)}&project=${encodeURIComponent(projectName)}`;
         document.getElementById('breadcrumb-run').textContent = `Run ${shortId(runId)}`;
         document.getElementById('run-title').textContent = `Run ${shortId(runId)}`;
         document.title = `ML Monitor — Run ${shortId(runId)}`;
+        document.getElementById('delete-run-btn').innerHTML = `${icons.trash} Delete Run`;
 
-        // State
+        // ── State ──────────────────────────────────
         let currentLossData = [];
         let currentMetricsData = [];
         let currentRunStatus = 'running';
-        let chartMode = 'overlay';  // 'overlay' | 'split'
-        let viewMode = 'tabs';      // 'tabs' | 'scroll'
+        let chartMode = 'overlay';
+        let viewMode = 'tabs';
         let showMin = false;
         let showMax = false;
         let activeTab = 'loss';
-        let charts = {};         // { key: Chart instance }
+        let activeTask = null;       // null = show all tasks; string = specific task
+        let charts = {};
         const polling = new PollingManager(3000);
         let currentRunNote = '';
 
@@ -123,7 +127,6 @@
             init();
         }
 
-        // Delete run button
         document.getElementById('delete-run-btn').addEventListener('click', () => {
             openConfirmModal(
                 'Delete Run',
@@ -135,9 +138,7 @@
             );
         });
 
-        // ── Toolbar Handlers ──────────────────────
-
-        // View mode toggle
+        // ── Toolbar ───────────────────────────────
         document.querySelectorAll('.toggle-btn[data-view]').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.toggle-btn[data-view]').forEach(b => b.classList.remove('active'));
@@ -147,7 +148,6 @@
             });
         });
 
-        // Chart mode toggle
         document.querySelectorAll('.toggle-btn[data-chartmode]').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.toggle-btn[data-chartmode]').forEach(b => b.classList.remove('active'));
@@ -157,27 +157,16 @@
             });
         });
 
-        // Min/Max checkboxes
-        document.getElementById('show-min').addEventListener('change', (e) => {
-            showMin = e.target.checked;
-            rebuildAllCharts();
-        });
-
-        document.getElementById('show-max').addEventListener('change', (e) => {
-            showMax = e.target.checked;
-            rebuildAllCharts();
-        });
+        document.getElementById('show-min').addEventListener('change', e => { showMin = e.target.checked; rebuildAllCharts(); });
+        document.getElementById('show-max').addEventListener('change', e => { showMax = e.target.checked; rebuildAllCharts(); });
+        document.getElementById('split-tasks')?.addEventListener('change', e => { rebuildAllCharts(); });
 
         // ── Init ──────────────────────────────────
-
         async function init() {
             try {
                 const runs = await api.getRunsByModel(modelId);
                 const run = runs.find(r => r.id === runId);
-                if (run) {
-                    renderRunInfo(run);
-                    currentRunStatus = run.status;
-                }
+                if (run) { renderRunInfo(run); currentRunStatus = run.status; }
             } catch (e) { console.warn('Could not load run info:', e); }
 
             if (currentRunStatus === 'running') {
@@ -194,22 +183,22 @@
         function renderRunInfo(run) {
             document.getElementById('run-subtitle').textContent = `${modelName} · ${projectName}`;
             document.getElementById('run-info').innerHTML = `
-        <div class="run-info-item">
-          <span class="run-info-label">Status</span>
-          <span class="run-info-value"><span class="status-badge ${getStatusClass(run.status)}">${run.status}</span></span>
-        </div>
-        <div class="run-info-item">
-          <span class="run-info-label">Started</span>
-          <span class="run-info-value">${formatDate(run.started_at)}</span>
-        </div>
-        <div class="run-info-item">
-          <span class="run-info-label">Finished</span>
-          <span class="run-info-value">${formatDate(run.finished_at)}</span>
-        </div>
-        <div class="run-info-item">
-          <span class="run-info-label">Run ID</span>
-          <span class="run-info-value font-mono" style="font-size:0.75rem;">${run.id}</span>
-        </div>`;
+            <div class="run-info-item">
+                <span class="run-info-label">Status</span>
+                <span class="run-info-value"><span class="status-badge ${getStatusClass(run.status)}">${run.status}</span></span>
+            </div>
+            <div class="run-info-item">
+                <span class="run-info-label">Started</span>
+                <span class="run-info-value">${formatDate(run.started_at)}</span>
+            </div>
+            <div class="run-info-item">
+                <span class="run-info-label">Finished</span>
+                <span class="run-info-value">${formatDate(run.finished_at)}</span>
+            </div>
+            <div class="run-info-item">
+                <span class="run-info-label">Run ID</span>
+                <span class="run-info-value font-mono" style="font-size:0.75rem;">${run.id}</span>
+            </div>`;
 
             const hpContainer = document.getElementById('run-hyperparams');
             if (run.hyperparameters && Object.keys(run.hyperparameters).length > 0) {
@@ -220,7 +209,6 @@
                 hpContainer.innerHTML = '<span class="text-muted" style="font-size:0.75rem;">No hyperparameters</span>';
             }
 
-            // Notes section
             currentRunNote = run.note || '';
             renderNoteSection(currentRunNote);
         }
@@ -228,55 +216,54 @@
         function renderNoteSection(note) {
             const section = document.getElementById('run-note-section');
             section.innerHTML = `
-                <div class="run-note-header">
-                    <span class="run-note-label">${icons.note} Note</span>
-                    <button class="btn-icon" id="edit-note-btn" title="Edit note">${icons.pencil}</button>
-                </div>
-                <div class="run-note-text ${!note ? 'empty' : ''}" id="note-display">${note || 'No notes yet. Click the pencil icon to add one.'}</div>
-            `;
+            <div class="run-note-header">
+                <span class="run-note-label">${icons.note} Note</span>
+                <button class="btn-icon" id="edit-note-btn" title="Edit note">${icons.pencil}</button>
+            </div>
+            <div class="run-note-text ${!note ? 'empty' : ''}" id="note-display">${note || 'No notes yet. Click the pencil icon to add one.'}</div>`;
 
             document.getElementById('edit-note-btn').addEventListener('click', () => {
                 section.innerHTML = `
-                    <div class="run-note-header">
-                        <span class="run-note-label">${icons.note} Edit Note</span>
-                    </div>
-                    <textarea class="note-edit-area" id="note-textarea" placeholder="Write a note for this run...">${currentRunNote}</textarea>
-                    <div class="note-actions">
-                        <button class="btn btn-secondary btn-sm" id="note-cancel">Cancel</button>
-                        <button class="btn btn-primary btn-sm" id="note-save">Save</button>
-                    </div>
-                `;
-
+                <div class="run-note-header"><span class="run-note-label">${icons.note} Edit Note</span></div>
+                <textarea class="note-edit-area" id="note-textarea" placeholder="Write a note for this run...">${currentRunNote}</textarea>
+                <div class="note-actions">
+                    <button class="btn btn-secondary btn-sm" id="note-cancel">Cancel</button>
+                    <button class="btn btn-primary btn-sm" id="note-save">Save</button>
+                </div>`;
                 document.getElementById('note-textarea').focus();
-
-                document.getElementById('note-cancel').addEventListener('click', () => {
-                    renderNoteSection(currentRunNote);
-                });
-
+                document.getElementById('note-cancel').addEventListener('click', () => renderNoteSection(currentRunNote));
                 document.getElementById('note-save').addEventListener('click', async () => {
                     const newNote = document.getElementById('note-textarea').value;
                     try {
                         await api.updateNote(runId, newNote);
                         currentRunNote = newNote;
                         renderNoteSection(currentRunNote);
-                    } catch (err) {
-                        alert('Failed to save note: ' + err.message);
-                        console.error(err);
-                    }
+                    } catch (err) { alert('Failed to save note: ' + err.message); }
                 });
             });
         }
 
-        // ── Fetch Data ────────────────────────────
-
+        // ── Fetch ─────────────────────────────────
         async function fetchAllData() {
             try {
-                const [losses, metrics] = await Promise.all([api.getLosses(runId), api.getMetrics(runId)]);
+                const [losses, metricsRaw] = await Promise.all([api.getLosses(runId), api.getMetrics(runId)]);
                 currentLossData = losses;
-                currentMetricsData = metrics;
+
+                // Process metrics to support multitask grouping (e.g. "segmentation/accuracy")
+                currentMetricsData = metricsRaw.map(m => {
+                    const nameParts = m.metric_name.split('/');
+                    if (nameParts.length > 1) {
+                        return {
+                            ...m,
+                            task_name: nameParts.slice(0, -1).join('/'),
+                            metric_name: nameParts[nameParts.length - 1]
+                        };
+                    }
+                    return { ...m, task_name: SINGLE_TASK };
+                });
+
                 rebuildAllCharts();
 
-                // Check if run finished
                 if (currentRunStatus === 'running') {
                     try {
                         const runs = await api.getRunsByModel(modelId);
@@ -293,18 +280,33 @@
             } catch (err) { console.error('Error fetching data:', err); }
         }
 
-        // ── Build Charts ──────────────────────────
-
+        // ── Tab key helpers ───────────────────────
         function getMetricNames() {
             return [...new Set(currentMetricsData.map(m => m.metric_name))];
         }
 
         function getAllTabKeys() {
-            const tabs = ['loss'];
-            getMetricNames().forEach(n => tabs.push(n));
-            return tabs;
+            return ['loss', ...getMetricNames()];
         }
 
+        function getDataForKey(key) {
+            return key === 'loss'
+                ? currentLossData
+                : currentMetricsData.filter(m => m.metric_name === key);
+        }
+
+        // ── Task selector for a tab key ────────────
+        function getTasksForKey(key) {
+            return extractTaskNames(getDataForKey(key));
+        }
+
+        function getActiveTaskForKey(key) {
+            const tasks = getTasksForKey(key);
+            if (tasks.length <= 1) return tasks[0] || SINGLE_TASK;
+            return activeTask && tasks.includes(activeTask) ? activeTask : null;
+        }
+
+        // ── Build Charts ──────────────────────────
         function destroyAllCharts() {
             Object.values(charts).forEach(c => { if (c) c.destroy(); });
             charts = {};
@@ -320,38 +322,37 @@
                 return;
             }
 
-            if (viewMode === 'tabs') {
-                renderTabsView(area, tabKeys);
-            } else {
-                renderScrollView(area, tabKeys);
-            }
+            if (viewMode === 'tabs') renderTabsView(area, tabKeys);
+            else renderScrollView(area, tabKeys);
         }
 
         // ── Tabs View ─────────────────────────────
-
         function renderTabsView(area, tabKeys) {
-            // Keep active tab if still valid
             if (!tabKeys.includes(activeTab)) activeTab = tabKeys[0];
 
-            let tabsHtml = '<div class="tabs-container"><div class="tabs-header">';
+            let html = '<div class="tabs-container"><div class="tabs-header">';
             tabKeys.forEach(key => {
                 const label = key === 'loss' ? 'Loss' : key;
-                tabsHtml += `<button class="tab-btn ${key === activeTab ? 'active' : ''}" data-tab="${key}">${label}</button>`;
+                html += `<button class="tab-btn ${key === activeTab ? 'active' : ''}" data-tab="${key}">${label}</button>`;
             });
-            tabsHtml += '</div>';
+            html += '</div>';
 
             tabKeys.forEach(key => {
-                tabsHtml += `<div class="tab-panel ${key === activeTab ? 'active' : ''}" id="tab-${key}">
-          <div class="chart-container">
-            ${chartContainerHtml(key)}
-          </div>
-        </div>`;
+                const data = getDataForKey(key);
+                const tasks = extractTaskNames(data);
+                const multi = tasks.length > 1;
+                const taskSel = multi ? buildTaskSelectorHtml(key, tasks) : '';
+
+                html += `<div class="tab-panel ${key === activeTab ? 'active' : ''}" id="tab-${key}">
+                ${taskSel}
+                <div class="chart-container" id="chart-container-${key}">
+                    ${chartContainerHtml(key, data)}
+                </div>
+            </div>`;
             });
-            tabsHtml += '</div>';
+            html += '</div>';
+            area.innerHTML = html;
 
-            area.innerHTML = tabsHtml;
-
-            // Wire up tabs
             area.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     activeTab = btn.dataset.tab;
@@ -359,95 +360,287 @@
                     btn.classList.add('active');
                     area.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
                     document.getElementById(`tab-${activeTab}`).classList.add('active');
-                    // Rebuild chart for this tab (canvas might need re-render)
                     destroyAllCharts();
                     renderChartForKey(activeTab);
                 });
             });
 
-            // Render only the active tab chart
+            wireTaskSelectors(area);
             renderChartForKey(activeTab);
         }
 
         // ── Scroll View ───────────────────────────
-
         function renderScrollView(area, tabKeys) {
             let html = '';
             tabKeys.forEach(key => {
                 const label = key === 'loss' ? 'Loss' : key;
-                html += `
-          <div class="chart-section">
-            <div class="chart-section-header">
-              <h2 class="chart-section-title">${label}</h2>
-            </div>
-            <div class="chart-container">
-              ${chartContainerHtml(key)}
-            </div>
-          </div>`;
+                const data = getDataForKey(key);
+                const tasks = extractTaskNames(data);
+                const multi = tasks.length > 1;
+                const taskSel = multi ? buildTaskSelectorHtml(key, tasks) : '';
+
+                html += `<div class="chart-section">
+                <div class="chart-section-header"><h2 class="chart-section-title">${label}</h2></div>
+                ${taskSel}
+                <div class="chart-container" id="chart-container-${key}">
+                    ${chartContainerHtml(key, data)}
+                </div>
+            </div>`;
             });
             area.innerHTML = html;
-
-            // Render all charts
+            wireTaskSelectors(area);
             tabKeys.forEach(key => renderChartForKey(key));
         }
 
-        // ── Chart Container HTML ──────────────────
+        // ── Task filter state ──────────────────────
+        let activeTasks = {}; // metricKey -> set of tasks
 
-        function chartContainerHtml(key) {
-            const isCompact = viewMode === 'tabs' && chartMode === 'overlay';
-            const compactClass = isCompact ? ' compact' : '';
+        function initActiveTasks(key, availableTasks) {
+            if (!activeTasks[key]) {
+                // By default, select all tasks
+                activeTasks[key] = new Set(availableTasks);
+            } else {
+                // Ensure we don't hold onto removed tasks, but keep new ones if added dynamically
+                const valid = new Set();
+                activeTasks[key].forEach(t => { if (availableTasks.includes(t)) valid.add(t); });
+                if (valid.size === 0) availableTasks.forEach(t => valid.add(t));
+                activeTasks[key] = valid;
+            }
+        }
+
+        // ── Task selector HTML ─────────────────────
+        function buildTaskSelectorHtml(key, tasks) {
+            initActiveTasks(key, tasks);
+            const selected = activeTasks[key];
+
+            let btns = ``;
+            tasks.forEach(t => {
+                const isSelected = selected.has(t);
+                const active = isSelected ? 'active' : '';
+                btns += `<button class="task-btn ${active}" data-key="${key}" data-task="${t}">${taskLabel(t)}</button>`;
+            });
+            return `<div class="task-selector" id="task-sel-${key}">
+            <span class="task-selector-label">Selected Tasks:</span>
+            <div class="task-selector-btns">${btns}</div>
+        </div>`;
+        }
+
+        function wireTaskSelectors(container, onTaskChanged = null) {
+            container.querySelectorAll('.task-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const key = btn.dataset.key;
+                    const task = btn.dataset.task;
+
+                    if (!activeTasks[key]) return; // Should be initialized
+                    const selected = activeTasks[key];
+
+                    if (selected.has(task)) {
+                        // Prevent unselecting the last task
+                        if (selected.size > 1) {
+                            selected.delete(task);
+                            btn.classList.remove('active');
+                        }
+                    } else {
+                        selected.add(task);
+                        btn.classList.add('active');
+                    }
+
+                    if (onTaskChanged) {
+                        onTaskChanged(key);
+                    } else {
+                        // rebuild just that chart
+                        destroyAllCharts();
+                        if (viewMode === 'tabs') renderChartForKey(activeTab);
+                        else getAllTabKeys().forEach(k => renderChartForKey(k));
+                    }
+                });
+            });
+        }
+
+        function getActiveTaskFilters(key) {
+            if (!activeTasks[key]) return null;
+            return Array.from(activeTasks[key]);
+        }
+
+        // ── Chart Container HTML ──────────────────
+        function chartContainerHtml(key, data) {
+            const compact = viewMode === 'tabs' && chartMode === 'overlay' ? ' compact' : '';
+            const tasks = extractTaskNames(data);
+            const multi = tasks.length > 1;
+            const splitTasks = document.getElementById('split-tasks')?.checked;
+
+            if (multi && splitTasks && getActiveTaskForKey(key) === null) {
+                let html = '';
+                tasks.forEach(task => {
+                    const taskClean = task.replace(/[^a-zA-Z0-9]/g, '_');
+                    if (chartMode === 'overlay') {
+                        html += `<div class="charts-row single"><div class="chart-wrapper${compact}" data-chart-key="${key}-${taskClean}"><canvas id="chart-${key}-${taskClean}-overlay"></canvas></div></div>`;
+                    } else {
+                        html += `<div class="charts-row">
+                            <div class="chart-wrapper" data-chart-key="${key}-${taskClean}-train"><canvas id="chart-${key}-${taskClean}-train"></canvas></div>
+                            <div class="chart-wrapper" data-chart-key="${key}-${taskClean}-val"><canvas id="chart-${key}-${taskClean}-val"></canvas></div>
+                        </div>`;
+                    }
+                });
+                return html;
+            }
+
             if (chartMode === 'overlay') {
-                return `<div class="charts-row single"><div class="chart-wrapper${compactClass}" data-chart-key="${key}"><canvas id="chart-${key}-overlay"></canvas></div></div>`;
+                return `<div class="charts-row single"><div class="chart-wrapper${compact}" data-chart-key="${key}"><canvas id="chart-${key}-overlay"></canvas></div></div>`;
             } else {
                 return `<div class="charts-row">
-          <div class="chart-wrapper" data-chart-key="${key}-train"><canvas id="chart-${key}-train"></canvas></div>
-          <div class="chart-wrapper" data-chart-key="${key}-val"><canvas id="chart-${key}-val"></canvas></div>
-        </div>`;
+                <div class="chart-wrapper" data-chart-key="${key}-train"><canvas id="chart-${key}-train"></canvas></div>
+                <div class="chart-wrapper" data-chart-key="${key}-val"><canvas id="chart-${key}-val"></canvas></div>
+            </div>`;
             }
         }
 
         // ── Render Chart for Key ──────────────────
-
         function renderChartForKey(key) {
-            const data = key === 'loss' ? currentLossData : currentMetricsData.filter(m => m.metric_name === key);
+            const data = getDataForKey(key);
             const label = key === 'loss' ? 'Loss' : key;
-
             if (data.length === 0) return;
+
+            const allTasks = extractTaskNames(data);
+            const multi = allTasks.length > 1;
+            const splitTasks = document.getElementById('split-tasks')?.checked;
+
+            // Get all user-selected tasks for this chart
+            let activeTaskFilters = getActiveTaskFilters(key);
+            if (!activeTaskFilters) {
+                // Initial load: fallback to all tasks
+                activeTaskFilters = [...allTasks];
+            }
+
+            // A chart is "filtered to a subset" if the number of selected tasks is less than all tasks
+            // Wait, actually "All Tasks" mode meant we overlay all of them. If we just select one, we plot only that one.
+            // "Multi" logic: whether we are plotting more than 1 task at once
+            const plottingMultiTasks = activeTaskFilters.length > 1;
+
+            // Toggle "Separate Tasks" visibility
+            const splitToggle = document.getElementById('split-tasks-group');
+            if (multi) {
+                splitToggle.style.display = 'flex';
+            } else {
+                splitToggle.style.display = 'none';
+            }
+
+            if (multi && splitTasks) {
+                activeTaskFilters.forEach(task => {
+                    const taskClean = task.replace(/[^a-zA-Z0-9]/g, '_');
+                    const taskTitle = `${label} — ${taskLabel(task)}`;
+                    const taskData = filterByTask(data, task);
+
+                    if (chartMode === 'overlay') {
+                        const canvas = document.getElementById(`chart-${key}-${taskClean}-overlay`);
+                        if (!canvas) return;
+                        charts[`${key}-${taskClean}`] = createOverlayChart(canvas, taskData, `${taskTitle} (Train & Val)`, null, showMin, showMax);
+                        canvas.closest('.chart-wrapper').addEventListener('click', () => {
+                            openFullscreenChart(fsCanvas => createOverlayChart(fsCanvas, taskData, `${taskTitle} (Train & Val)`, null, showMin, showMax));
+                        });
+                    } else {
+                        ['train', 'validation'].forEach(split => {
+                            const suffix = split === 'train' ? 'train' : 'val';
+                            const canvas = document.getElementById(`chart-${key}-${taskClean}-${suffix}`);
+                            if (!canvas) return;
+                            const titleSplit = `${taskTitle} — ${split.charAt(0).toUpperCase() + split.slice(1)}`;
+                            charts[`${key}-${taskClean}-${suffix}`] = createSingleSplitChart(canvas, taskData, split, titleSplit, null, showMin, showMax);
+                            canvas.closest('.chart-wrapper').addEventListener('click', () => {
+                                openFullscreenChart(fsCanvas => createSingleSplitChart(fsCanvas, taskData, split, titleSplit, null, showMin, showMax));
+                            });
+                        });
+                    }
+                });
+                return;
+            }
+
+            // Not splitting tasks into separate canvases: we render ONE canvas containing the selected tasks
+            const dataToPlot = data.filter(d => activeTaskFilters.includes(d.task_name || SINGLE_TASK));
 
             if (chartMode === 'overlay') {
                 const canvas = document.getElementById(`chart-${key}-overlay`);
-                if (canvas) {
-                    charts[key] = createOverlayChart(canvas, data, `${label} — Train & Validation`, null, showMin, showMax);
-                    // Click to fullscreen
-                    canvas.closest('.chart-wrapper').addEventListener('click', () => {
-                        openFullscreenChart((fsCanvas) =>
-                            createOverlayChart(fsCanvas, data, `${label} — Train & Validation`, null, showMin, showMax)
-                        );
-                    });
+                if (!canvas) return;
+                const title = `${label} — Train & Validation`;
+
+                if (plottingMultiTasks) {
+                    charts[key] = createMultitaskOverlayChart(canvas, data, title, activeTaskFilters, null, showMin, showMax);
+                } else {
+                    charts[key] = createOverlayChart(canvas, dataToPlot, title, null, showMin, showMax);
                 }
+                canvas.closest('.chart-wrapper').addEventListener('click', () => {
+                    const extraHtml = multi ? buildTaskSelectorHtml(key, allTasks) : '';
+                    openFullscreenChart(fsCanvas => {
+                        const curFilters = Array.from(activeTasks[key] || []);
+                        const curMulti = curFilters.length > 1;
+                        const curPlotData = data.filter(d => curFilters.includes(d.task_name || SINGLE_TASK));
+                        if (curMulti) return createMultitaskOverlayChart(fsCanvas, data, title, curFilters, null, showMin, showMax);
+                        return createOverlayChart(fsCanvas, curPlotData, title, null, showMin, showMax);
+                    },
+                        extraHtml,
+                        (header, reRender) => {
+                            if (extraHtml) {
+                                wireTaskSelectors(header, () => {
+                                    destroyAllCharts();
+                                    if (viewMode === 'tabs') renderChartForKey(activeTab); else renderChartForKey(key);
+
+                                    const fsCanvas = document.getElementById('fullscreen-canvas');
+                                    reRender(newCanvas => {
+                                        const curFilters = Array.from(activeTasks[key] || []);
+                                        const curMulti = curFilters.length > 1;
+                                        const curPlotData = data.filter(d => curFilters.includes(d.task_name || SINGLE_TASK));
+                                        if (curMulti) return createMultitaskOverlayChart(newCanvas, data, title, curFilters, null, showMin, showMax);
+                                        return createOverlayChart(newCanvas, curPlotData, title, null, showMin, showMax);
+                                    });
+                                });
+                            }
+                        }
+                    );
+                });
             } else {
-                const trainCanvas = document.getElementById(`chart-${key}-train`);
-                const valCanvas = document.getElementById(`chart-${key}-val`);
-                if (trainCanvas) {
-                    charts[`${key}-train`] = createSingleSplitChart(trainCanvas, data, 'train', `${label} — Train`, null, showMin, showMax);
-                    trainCanvas.closest('.chart-wrapper').addEventListener('click', () => {
-                        openFullscreenChart((fsCanvas) =>
-                            createSingleSplitChart(fsCanvas, data, 'train', `${label} — Train`, null, showMin, showMax)
+                ['train', 'validation'].forEach(split => {
+                    const suffix = split === 'train' ? 'train' : 'val';
+                    const canvas = document.getElementById(`chart-${key}-${suffix}`);
+                    if (!canvas) return;
+                    const title = `${label} — ${split.charAt(0).toUpperCase() + split.slice(1)}`;
+
+                    if (plottingMultiTasks) {
+                        charts[`${key}-${suffix}`] = createMultitaskSplitChart(canvas, data, split, title, activeTaskFilters, null, showMin, showMax);
+                    } else {
+                        charts[`${key}-${suffix}`] = createSingleSplitChart(canvas, dataToPlot, split, title, null, showMin, showMax);
+                    }
+                    canvas.closest('.chart-wrapper').addEventListener('click', () => {
+                        const extraHtml = multi ? buildTaskSelectorHtml(key, allTasks) : '';
+                        openFullscreenChart(fsCanvas => {
+                            const curFilters = Array.from(activeTasks[key] || []);
+                            const curMulti = curFilters.length > 1;
+                            const curPlotData = data.filter(d => curFilters.includes(d.task_name || SINGLE_TASK));
+                            if (curMulti) return createMultitaskSplitChart(fsCanvas, data, split, title, curFilters, null, showMin, showMax);
+                            return createSingleSplitChart(fsCanvas, curPlotData, split, title, null, showMin, showMax);
+                        },
+                            extraHtml,
+                            (header, reRender) => {
+                                if (extraHtml) {
+                                    wireTaskSelectors(header, () => {
+                                        destroyAllCharts();
+                                        if (viewMode === 'tabs') renderChartForKey(activeTab); else renderChartForKey(key);
+
+                                        const fsCanvas = document.getElementById('fullscreen-canvas');
+                                        reRender(newCanvas => {
+                                            const curFilters = Array.from(activeTasks[key] || []);
+                                            const curMulti = curFilters.length > 1;
+                                            const curPlotData = data.filter(d => curFilters.includes(d.task_name || SINGLE_TASK));
+                                            if (curMulti) return createMultitaskSplitChart(newCanvas, data, split, title, curFilters, null, showMin, showMax);
+                                            return createSingleSplitChart(newCanvas, curPlotData, split, title, null, showMin, showMax);
+                                        });
+                                    });
+                                }
+                            }
                         );
                     });
-                }
-                if (valCanvas) {
-                    charts[`${key}-val`] = createSingleSplitChart(valCanvas, data, 'validation', `${label} — Validation`, null, showMin, showMax);
-                    valCanvas.closest('.chart-wrapper').addEventListener('click', () => {
-                        openFullscreenChart((fsCanvas) =>
-                            createSingleSplitChart(fsCanvas, data, 'validation', `${label} — Validation`, null, showMin, showMax)
-                        );
-                    });
-                }
+                });
             }
         }
 
-        // Cleanup
         window.addEventListener('beforeunload', () => polling.stopAll());
     </script>
 </body>
