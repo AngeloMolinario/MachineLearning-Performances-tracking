@@ -21,7 +21,8 @@ async def create_loss_batch(loss_batch: schemas.LossBatchCreate, db: AsyncSessio
 async def get_losses(
         run_id: str,
         split: Optional[str] = None,
+        task_name: Optional[str] = None,
         limit: Optional[int] = None,
         db: AsyncSession = Depends(get_db)):
 
-    return await loss_repo.get_loss_with_param(db, run_id, split, limit)
+    return await loss_repo.get_loss_with_param(db, run_id, task_name, split, limit)

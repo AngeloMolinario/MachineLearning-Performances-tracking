@@ -20,12 +20,15 @@ class LossRepository(BaseRepository[Loss, LossCreate, LossUpdate]):
             await db.refresh(loss)
         return losses
     
-    async def get_loss_with_param(self, db:AsyncSession, run_id: str, split: Optional[str] = None, limit: Optional[int] = None):
+    async def get_loss_with_param(self, db:AsyncSession, run_id: str, task_name: Optional[str] = None, split: Optional[str] = None, limit: Optional[int] = None):
         stmt = select(Loss).where(Loss.run_id == run_id)
         if split:
             stmt = stmt.where(Loss.split == split)
+        if task_name:
+            stmt = stmt.where(Loss.task_name == task_name)
         if limit:
             stmt = stmt.limit(limit)
+
         stmt = stmt.order_by(Loss.step.desc())
         result = await db.execute(stmt)
         return result.scalars().all()

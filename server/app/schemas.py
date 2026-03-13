@@ -64,6 +64,7 @@ class LossCreate(BaseModel):
     step: int
     split: SplitEnum
     value: float
+    task_name: Optional[str] = "__single_task__"
 
 class LossBatchCreate(BaseModel):
     run_id : UUID    
@@ -73,6 +74,7 @@ class LossRead(BaseModel):
     run_id: UUID
     step: int
     split: SplitEnum
+    task_name: str
     timestamp: datetime
     value: float
 

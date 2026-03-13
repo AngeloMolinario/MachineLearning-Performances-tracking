@@ -47,6 +47,7 @@ class Loss(Base):
     run_id = Column(UUID(as_uuid=True), ForeignKey("training_runs.id"), nullable=False)
     step = Column(Integer, nullable=False)
     split = Column(Enum(SplitEnum), nullable=False)
+    task_name = Column(String, nullable=False, default="__single_task__")
 
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     value = Column(Float, nullable=False)
@@ -54,8 +55,8 @@ class Loss(Base):
     run = relationship("TrainingRun", back_populates="losses")
 
     __table_args__ = (
-        PrimaryKeyConstraint("run_id", "step", "split"),
-        Index("idx_loss_run_split_step", "run_id", "split", "step"),
+        PrimaryKeyConstraint("run_id", "step", "split", "task_name"),
+        Index("idx_loss_run_split_step", "run_id", "split", "step", "task_name"),
     )
 
 class Metric(Base):
