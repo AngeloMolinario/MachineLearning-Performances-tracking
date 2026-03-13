@@ -13,7 +13,7 @@ class MetricUpdate(BaseModel):
 
 class MetricRepository(BaseRepository[Metric, MetricCreate, MetricUpdate]):
     
-    async def create_batch_loss(self, db:AsyncSession, batch:MetricBatchCreate):
+    async def create_batch_metrics(self, db:AsyncSession, batch:MetricBatchCreate):
         metrics = [Metric(**metric.model_dump()) for metric in batch.metrics]
         db.add_all(metrics)
         await db.commit()
@@ -21,7 +21,7 @@ class MetricRepository(BaseRepository[Metric, MetricCreate, MetricUpdate]):
             await db.refresh(metric)
         return metrics
     
-    async def get_loss_with_param(self, db:AsyncSession, run_id: str, metric_name:Optional[str] ,split: Optional[str] = None, limit: Optional[int] = None):
+    async def get_metrics_with_param(self, db:AsyncSession, run_id: str, metric_name:Optional[str] = None ,split: Optional[str] = None, limit: Optional[int] = None):
         stmt = select(Metric).where(Metric.run_id == run_id)
         if split:
             stmt = stmt.where(Metric.split == split)

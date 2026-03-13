@@ -12,7 +12,7 @@ class LossUpdate(BaseModel):
 
 class LossRepository(BaseRepository[Loss, LossCreate, LossUpdate]):
     
-    async def create_batch_loss(self, db:AsyncSession, batch:LossBatchCreate):
+    async def create_loss_batch(self, db:AsyncSession, batch:LossBatchCreate):
         losses = [Loss(**loss.model_dump()) for loss in batch.losses]
         db.add_all(losses)
         await db.commit()

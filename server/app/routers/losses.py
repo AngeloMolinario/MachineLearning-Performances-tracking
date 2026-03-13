@@ -15,7 +15,7 @@ async def create_loss(loss: schemas.LossCreate, db: AsyncSession = Depends(get_d
 
 @router.post("/batch", response_model=list[schemas.LossRead])
 async def create_loss_batch(loss_batch: schemas.LossBatchCreate, db: AsyncSession = Depends(get_db)):
-    return await loss_repo.create_batch_loss(db, loss_batch)
+    return await loss_repo.create_loss_batch(db, loss_batch)
 
 @router.get("/", response_model=List[schemas.LossRead])
 async def get_losses(

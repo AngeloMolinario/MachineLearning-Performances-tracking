@@ -14,7 +14,7 @@ async def create_metric(metric: schemas.MetricCreate, db: AsyncSession = Depends
 
 @router.post("/batch", response_model=list[schemas.MetricRead])
 async def create_loss_batch(metrics: schemas.MetricBatchCreate, db: AsyncSession = Depends(get_db)):
-    return await metric_repo.create_batch_loss(db, metrics)
+    return await metric_repo.create_batch_metrics(db, metrics)
 
 @router.get("/", response_model=List[schemas.MetricRead])
 async def get_metrics(
@@ -24,4 +24,4 @@ async def get_metrics(
         limit: Optional[int] = None,
         db: AsyncSession = Depends(get_db)):
 
-    return await metric_repo.get_loss_with_param(db, run_id, metric_name, split, limit)
+    return await metric_repo.get_metrics_with_param(db, run_id, metric_name, split, limit)
